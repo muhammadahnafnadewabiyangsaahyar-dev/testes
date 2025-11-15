@@ -1,0 +1,55 @@
+[2025-11-08 17:40:54] [INFO] ==========================================
+[2025-11-08 17:40:54] [INFO] KAORI HR SYSTEM COMPREHENSIVE TESTING
+[2025-11-08 17:40:54] [INFO] ==========================================
+[2025-11-08 17:40:54] [INFO] Started at: 2025-11-08 17:40:54
+[2025-11-08 17:40:54] [INFO] 
+[2025-11-08 17:40:54] [INFO] Setting up test database with dummy data...
+[2025-11-08 17:40:56] [INFO] ✅ Test database setup completed successfully
+[2025-11-08 17:40:56] [INFO] Testing database connectivity...
+[2025-11-08 17:40:56] [FAIL] ✗ Database Connection: Database connection failed
+[2025-11-08 17:40:56] [INFO] Testing role management functions...
+[2025-11-08 17:40:56] [PASS] ✓ Admin Role Check: Admin role correctly identified
+[2025-11-08 17:40:56] [PASS] ✓ User Role Check: User role correctly identified
+[2025-11-08 17:40:56] [PASS] ✓ Superadmin Role Check: Superadmin role correctly identified
+[2025-11-08 17:40:56] [PASS] ✓ Role Level Superadmin: Superadmin level is 3
+[2025-11-08 17:40:56] [PASS] ✓ Role Level Admin: Admin level is 2
+[2025-11-08 17:40:56] [PASS] ✓ Role Level User: User level is 1
+[2025-11-08 17:40:56] [INFO] Testing position management...
+[2025-11-08 17:40:56] [FAIL] ✗ Position Management: Position management error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'created_at' in 'field list'
+[2025-11-08 17:40:56] [INFO] Testing shift management...
+[2025-11-08 17:40:56] [PASS] ✓ Shift Assignments: Shift assignments retrieved successfully
+[2025-11-08 17:40:56] [PASS] ✓ Shift Confirmation: Shift confirmed successfully
+[2025-11-08 17:40:56] [INFO] Testing attendance system...
+[2025-11-08 17:40:56] [PASS] ✓ Attendance Status Calculation: Attendance status calculated successfully
+[2025-11-08 17:40:56] [PASS] ✓ Attendance Helper: Attendance helper functions work correctly
+[2025-11-08 17:40:56] [INFO] Testing leave management...
+[2025-11-08 17:40:56] [FAIL] ✗ Leave Management: Leave management error: SQLSTATE[HY000]: General error: 1364 Field 'file_surat' doesn't have a default value
+[2025-11-08 17:40:56] [INFO] Testing payroll system...
+[2025-11-08 17:40:56] [PASS] ✓ Salary Components: Salary components created successfully
+[2025-11-08 17:40:56] [INFO] Testing WhatsApp integration...
+[2025-11-08 17:40:56] [PASS] ✓ WhatsApp API Class: WhatsApp API class loaded successfully
+[2025-11-08 17:40:56] [PASS] ✓ Phone Number Formatting: Phone number formatted correctly
+[2025-11-08 17:40:56] [INFO] Testing email system...
+[2025-11-08 17:40:56] [FAIL] ✗ Email Helper Function: FAILED
+[2025-11-08 17:40:56] [PASS] ✓ Email Validation: Email validation works
+[2025-11-08 17:40:56] [INFO] Testing security features...
+[2025-11-08 17:40:56] [PASS] ✓ CSRF Token Generation: CSRF tokens are unique
+[2025-11-08 17:40:57] [PASS] ✓ Password Hashing: Password hashing works correctly
+[2025-11-08 17:40:57] [INFO] Testing file operations...
+[2025-11-08 17:40:57] [PASS] ✓ Directory Creation: Test directory created successfully
+[2025-11-08 17:40:57] [PASS] ✓ File Writing: Test file written successfully
+[2025-11-08 17:40:57] [INFO] 
+[2025-11-08 17:40:57] [INFO] ==========================================
+[2025-11-08 17:40:57] [INFO] TEST SUMMARY
+[2025-11-08 17:40:57] [INFO] ==========================================
+[2025-11-08 17:40:57] [INFO] Total Tests: 22
+[2025-11-08 17:40:57] [INFO] Passed: 18
+[2025-11-08 17:40:57] [INFO] Failed: 4
+[2025-11-08 17:40:57] [INFO] Warnings: 0
+[2025-11-08 17:40:57] [INFO] Execution Time: 3.02 seconds
+[2025-11-08 17:40:57] [INFO] 
+[2025-11-08 17:40:57] [INFO] Success Rate: 81.8%
+[2025-11-08 17:40:57] [INFO] ⚠️  Some tests failed. Please review the issues above.
+[2025-11-08 17:40:57] [INFO] 
+[2025-11-08 17:40:57] [INFO] Detailed results saved to: test_results_2025-11-08_17-40-54.log
+[2025-11-08 17:40:57] [INFO] ==========================================

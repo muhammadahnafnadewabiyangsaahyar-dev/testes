@@ -1,0 +1,8 @@
+[2025-11-08 17:39:23] [INFO] ==========================================
+[2025-11-08 17:39:23] [INFO] KAORI HR SYSTEM COMPREHENSIVE TESTING
+[2025-11-08 17:39:23] [INFO] ==========================================
+[2025-11-08 17:39:23] [INFO] Started at: 2025-11-08 17:39:23
+[2025-11-08 17:39:23] [INFO] 
+[2025-11-08 17:39:23] [INFO] Setting up test database with dummy data...
+[2025-11-08 17:39:23] [ERROR] ❌ Database setup failed: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'alamat' in 'field list'
+[2025-11-08 17:39:23] [ERROR] ❌ CRITICAL: Test database setup failed. Aborting tests.

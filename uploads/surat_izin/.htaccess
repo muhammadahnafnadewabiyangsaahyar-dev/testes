@@ -1,0 +1,48 @@
+# Upload Directory Protection
+<Files "*.php">
+    Deny from all
+</Files>
+
+<Files "*.sh">
+    Deny from all
+</Files>
+
+<Files "*.exe">
+    Deny from all
+</Files>
+
+# Allow only necessary file types
+<Files "*.jpg">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+<Files "*.jpeg">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+<Files "*.png">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+<Files "*.gif">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+<Files "*.pdf">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+<Files "*.docx">
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+# Security headers
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"

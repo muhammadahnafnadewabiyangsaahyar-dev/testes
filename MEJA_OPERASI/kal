@@ -1,0 +1,701 @@
+/**
+ * Modern Calendar Components - Shows new architecture in action
+ * Replaces hardcoded shift lists with dynamic, API-driven components
+ */
+
+class BranchSelector extends ModernKalenderArchitecture.Component {
+    constructor(store, eventBus) {
+        super(store, eventBus, {
+            container: document.getElementById('cabang-select')?.parentNode
+        });
+    }
+    
+    setupEventListeners() {
+        // Listen for branch selection changes
+        this.on('BRANCH_SELECTED', this.handleBranchSelected.bind(this));
+        
+        // Listen for data loading events
+        this.on('SHIFTS_LOADED', this.handleShiftsLoaded.bind(this));
+        this.on('ASSIGNMENTS_LOADED', this.handleAssignmentsLoaded.bind(this));
+        
+        // Listen for error events
+        this.on('SHIFT_LOAD_ERROR', this.handleShiftLoadError.bind(this));
+    }
+    
+    handleStateChange(newState) {
+        const { currentBranchId, branches, isLoadingShifts, error } = newState;
+        
+        // Update UI when branch selection changes
+        this.render();
+        
+        // Auto-load shifts when branch is selected
+        if (currentBranchId && !isLoadingShifts && !error) {
+            this.loadShiftsForBranch(currentBranchId);
+        }
+    }
+    
+    async render() {
+        const { branches, currentBranchId } = this.getState();
+        
+        const selectElement = document.getElementById('cabang-select');
+        if (!selectElement) return;
+        
+        // Clear existing options
+        selectElement.innerHTML = '<option value="">-- Pilih Cabang --</option>';
+        
+        // Add branch options dynamically (no hardcoding!)
+        branches.forEach(branch => {
+            const option = document.createElement('option');
+            option.value = branch.id;
+            option.textContent = branch.nama_cabang;
+            option.selected = branch.id == currentBranchId;
+            selectElement.appendChild(option);
+        });
+        
+        // Add event listener for branch selection
+        selectElement.onchange = (event) => {
+            const branchId = event.target.value;
+            const branchName = event.target.options[event.target.selectedIndex]?.text;
+            
+            this.emit('BRANCH_SELECTED', {
+                branchId: branchId ? parseInt(branchId) : null,
+                branchName: branchName
+            });
+        };
+        
+        console.log(`🏢 Branch selector updated with ${branches.length} branches`);
+    }
+    
+    async loadShiftsForBranch(branchId) {
+        try {
+            this.setState({ isLoadingShifts: true, error: null }, 'BranchSelector:loadShifts');
+            
+            const shiftService = this.store.getState().services?.branchConfig;
+            if (shiftService) {
+                const response = await shiftService.getBranchShifts(branchId);
+                
+                this.setState({
+                    shifts: response.data || [],
+                    isLoadingShifts: false
+                }, 'BranchSelector:shiftsLoaded');
+                
+                this.emit('SHIFTS_LOADED', {
+                    branchId,
+                    shifts: response.data || []
+                });
+                
+            } else {
+                throw new Error('Branch configuration service not available');
+            }
+            
+        } catch (error) {
+            console.error('Failed to load shifts for branch:', error);
+            
+            this.setState({
+                error: `Failed to load shifts: ${error.message}`,
+                isLoadingShifts: false
+            }, 'BranchSelector:loadError');
+            
+            this.emit('SHIFT_LOAD_ERROR', { error: error.message });
+        }
+    }
+    
+    handleBranchSelected(data) {
+        console.log('🏢 Branch selected:', data);
+        
+        this.setState({
+            currentBranchId: data.branchId,
+            currentBranchName: data.branchName,
+            assignments: {} // Clear assignments when branch changes
+        }, 'BranchSelector:branchSelected');
+    }
+    
+    handleShiftsLoaded(data) {
+        console.log('📋 Shifts loaded for branch:', data.branchId, data.shifts.length);
+    }
+    
+    handleAssignmentsLoaded(data) {
+        console.log('📅 Assignments loaded:', Object.keys(data.assignments || {}).length);
+    }
+    
+    handleShiftLoadError(data) {
+        console.error('Shift loading error:', data.error);
+    }
+}
+
+class CalendarView extends ModernKalenderArchitecture.Component {
+    constructor(store, eventBus) {
+        super(store, eventBus, {
+            container: document.getElementById('calendar-view')
+        });
+        
+        this.currentView = 'month';
+    }
+    
+    setupEventListeners() {
+        // View switching
+        this.on('VIEW_SWITCH', this.handleViewSwitch.bind(this));
+        this.on('DATE_NAVIGATE', this.handleDateNavigate.bind(this));
+        this.on('BRANCH_SELECTED', this.handleBranchSelected.bind(this));
+        
+        // Data events
+        this.on('SHIFTS_LOADED', this.handleDataUpdate.bind(this));
+        this.on('ASSIGNMENTS_LOADED', this.handleDataUpdate.bind(this));
+        
+        // UI events
+        this.setupViewButtons();
+        this.setupNavigationButtons();
+    }
+    
+    handleStateChange(newState) {
+        const { currentView, currentDate, currentMonth, currentYear, shifts, assignments } = newState;
+        
+        // Re-render when view-related state changes
+        if (currentView !== this.currentView || 
+            this.needsReRender(newState)) {
+            this.currentView = currentView;
+            this.render();
+        }
+    }
+    
+    needsReRender(newState) {
+        const { currentDate, currentMonth, currentYear, shifts, assignments } = newState;
+        const oldState = this.getState();
+        
+        return currentDate?.getTime() !== oldState.currentDate?.getTime() ||
+               currentMonth !== oldState.currentMonth ||
+               currentYear !== oldState.currentYear ||
+               JSON.stringify(shifts) !== JSON.stringify(oldState.shifts) ||
+               JSON.stringify(assignments) !== JSON.stringify(oldState.assignments);
+    }
+    
+    setupViewButtons() {
+        // Setup view switching buttons
+        const viewButtons = ['view-day', 'view-week', 'view-month', 'view-year'];
+        
+        viewButtons.forEach(buttonId => {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                button.onclick = () => {
+                    const view = buttonId.replace('view-', '');
+                    this.emit('VIEW_SWITCH', { view });
+                };
+            }
+        });
+    }
+    
+    setupNavigationButtons() {
+        const prevButton = document.getElementById('prev-nav');
+        const nextButton = document.getElementById('next-nav');
+        
+        if (prevButton) {
+            prevButton.onclick = () => this.emit('DATE_NAVIGATE', { direction: 'prev' });
+        }
+        
+        if (nextButton) {
+            nextButton.onclick = () => this.emit('DATE_NAVIGATE', { direction: 'next' });
+        }
+    }
+    
+    async render() {
+        const { currentView, currentDate, currentMonth, currentYear, shifts, assignments } = this.getState();
+        
+        // Hide all views first
+        this.hideAllViews();
+        
+        switch (currentView) {
+            case 'month':
+                await this.renderMonthView(currentMonth, currentYear, shifts, assignments);
+                break;
+            case 'week':
+                await this.renderWeekView(currentDate, shifts, assignments);
+                break;
+            case 'day':
+                await this.renderDayView(currentDate, shifts, assignments);
+                break;
+            case 'year':
+                await this.renderYearView(currentYear);
+                break;
+        }
+        
+        this.updateNavigationLabels();
+    }
+    
+    async renderMonthView(month, year, shifts, assignments) {
+        const calendarBody = document.getElementById('calendar-body');
+        const monthView = document.getElementById('month-view');
+        
+        if (!calendarBody || !monthView) return;
+        
+        // Show month view
+        monthView.style.display = 'block';
+        
+        // Clear calendar
+        calendarBody.innerHTML = '';
+        
+        // Generate calendar
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        let date = 1;
+        
+        for (let i = 0; i < 6; i++) {
+            const row = document.createElement('tr');
+            
+            for (let j = 0; j < 7; j++) {
+                const cell = document.createElement('td');
+                
+                if (i === 0 && j < firstDay) {
+                    cell.classList.add('empty');
+                } else if (date > daysInMonth) {
+                    cell.classList.add('empty');
+                } else {
+                    // Add date number
+                    const dateDiv = document.createElement('div');
+                    dateDiv.className = 'date-number';
+                    dateDiv.textContent = date;
+                    cell.appendChild(dateDiv);
+                    
+                    // Highlight today
+                    const today = new Date();
+                    if (date === today.getDate() && 
+                        month === today.getMonth() && 
+                        year === today.getFullYear()) {
+                        cell.classList.add('today');
+                    }
+                    
+                    // Add shift summary (dynamic, no hardcoding!)
+                    const dateStr = this.formatDate(new Date(year, month, date));
+                    const shiftsForDate = this.getShiftsForDate(assignments, dateStr);
+                    
+                    if (shiftsForDate.length > 0) {
+                        const shiftsDiv = document.createElement('div');
+                        shiftsDiv.className = 'shifts-summary';
+                        shiftsDiv.textContent = `${shiftsForDate.length} shift(s)`;
+                        shiftsDiv.style.cssText = `
+                            font-size: 11px; 
+                            color: #2196F3; 
+                            margin-top: 5px;
+                            cursor: pointer;
+                        `;
+                        
+                        // Click to navigate to day view
+                        shiftsDiv.onclick = () => {
+                            this.emit('DATE_NAVIGATE', { 
+                                direction: 'goto',
+                                date: new Date(year, month, date)
+                            });
+                            this.emit('VIEW_SWITCH', { view: 'day' });
+                        };
+                        
+                        cell.appendChild(shiftsDiv);
+                    }
+                    
+                    date++;
+                }
+                row.appendChild(cell);
+            }
+            
+            calendarBody.appendChild(row);
+            
+            if (date > daysInMonth) break;
+        }
+    }
+    
+    async renderWeekView(date, shifts, assignments) {
+        const weekView = document.getElementById('week-view');
+        const weekCalendar = document.getElementById('week-calendar');
+        
+        if (!weekView || !weekCalendar) return;
+        
+        weekView.style.display = 'block';
+        
+        // Calculate week range
+        const weekStart = new Date(date);
+        const day = weekStart.getDay();
+        const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+        weekStart.setDate(diff);
+        
+        // Clear and rebuild
+        const timeColumn = document.getElementById('time-column');
+        const daysColumn = document.getElementById('days-column');
+        
+        if (timeColumn) timeColumn.style.display = 'none';
+        
+        if (daysColumn) {
+            daysColumn.innerHTML = '';
+            
+            for (let i = 0; i < 7; i++) {
+                const currentDay = new Date(weekStart);
+                currentDay.setDate(weekStart.getDate() + i);
+                const dateStr = this.formatDate(currentDay);
+                
+                const dayColumn = document.createElement('div');
+                dayColumn.className = 'day-column';
+                
+                const dayContent = document.createElement('div');
+                dayContent.className = 'day-content';
+                
+                // Get shifts for this day (dynamic!)
+                const shiftsForDay = this.getShiftsForDate(assignments, dateStr);
+                
+                if (shiftsForDay.length > 0) {
+                    // Group shifts by time and type
+                    const groupedShifts = this.groupShiftsByTime(shiftsForDay);
+                    
+                    // Display grouped shifts
+                    Object.values(groupedShifts).forEach(group => {
+                        const shiftDiv = this.createShiftDisplay(group);
+                        dayContent.appendChild(shiftDiv);
+                    });
+                } else {
+                    const emptyDiv = document.createElement('div');
+                    emptyDiv.style.cssText = 'padding: 20px; text-align: center; color: #999;';
+                    emptyDiv.textContent = 'Tidak ada shift';
+                    dayContent.appendChild(emptyDiv);
+                }
+                
+                dayColumn.appendChild(dayContent);
+                daysColumn.appendChild(dayColumn);
+            }
+        }
+    }
+    
+    async renderDayView(date, shifts, assignments) {
+        const dayView = document.getElementById('day-view');
+        const dayContent = document.getElementById('day-content');
+        
+        if (!dayView || !dayContent) return;
+        
+        dayView.style.display = 'block';
+        dayContent.innerHTML = '';
+        
+        const dateStr = this.formatDate(date);
+        const dayShifts = this.getShiftsForDate(assignments, dateStr);
+        
+        // Add instruction if no branch selected
+        const { currentBranchId } = this.getState();
+        if (!currentBranchId) {
+            const instruction = document.createElement('div');
+            instruction.style.cssText = 'padding: 20px; text-align: center; color: #ff9800; background-color: #fff3e0; border-radius: 8px; margin: 20px;';
+            instruction.innerHTML = '<strong>ℹ️ Pilih cabang terlebih dahulu untuk melihat dan assign shift!</strong>';
+            dayContent.appendChild(instruction);
+            return;
+        }
+        
+        // Add shift cards (dynamic, based on actual data!)
+        if (dayShifts.length > 0) {
+            const shiftsGrouped = this.groupShiftsByTime(dayShifts);
+            
+            Object.values(shiftsGrouped).forEach(group => {
+                const shiftCard = this.createShiftCard(group, date);
+                dayContent.appendChild(shiftCard);
+            });
+        } else {
+            const noShiftInfo = document.createElement('div');
+            noShiftInfo.style.cssText = 'padding: 20px; text-align: center; color: #666; background-color: #f5f5f5; border-radius: 8px; margin: 20px;';
+            noShiftInfo.innerHTML = '<strong>📅 Belum ada shift yang di-assign untuk hari ini</strong><br><small>Klik pada jam di sebelah kiri untuk assign shift</small>';
+            dayContent.appendChild(noShiftInfo);
+        }
+    }
+    
+    async renderYearView(year) {
+        const yearView = document.getElementById('year-view');
+        const yearGrid = document.getElementById('year-grid');
+        
+        if (!yearView || !yearGrid) return;
+        
+        yearView.style.display = 'block';
+        yearGrid.innerHTML = '';
+        
+        const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+                           'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        
+        for (let month = 0; month < 12; month++) {
+            const monthDiv = document.createElement('div');
+            monthDiv.className = 'month-mini';
+            
+            const monthTitle = document.createElement('h4');
+            monthTitle.textContent = monthNames[month];
+            monthDiv.appendChild(monthTitle);
+            
+            const miniCalendar = this.createMiniCalendar(year, month);
+            monthDiv.appendChild(miniCalendar);
+            
+            yearGrid.appendChild(monthDiv);
+        }
+    }
+    
+    // Helper methods (no hardcoded values!)
+    formatDate(date) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+    
+    getShiftsForDate(assignments, dateStr) {
+        if (!assignments) return [];
+        
+        return Object.values(assignments).filter(assignment => 
+            assignment.assignment_date === dateStr || assignment.shift_date === dateStr
+        );
+    }
+    
+    groupShiftsByTime(shifts) {
+        const grouped = {};
+        
+        shifts.forEach(assignment => {
+            const key = `${assignment.shift_template_id}-${assignment.start_time}-${assignment.end_time}`;
+            
+            if (!grouped[key]) {
+                grouped[key] = {
+                    templateId: assignment.shift_template_id,
+                    shiftName: assignment.shift_name || assignment.nama_shift || 'Unknown',
+                    startTime: assignment.start_time,
+                    endTime: assignment.end_time,
+                    color: assignment.color_hex || '#2196F3',
+                    icon: assignment.icon_emoji || '📅',
+                    employees: []
+                };
+            }
+            
+            grouped[key].employees.push({
+                name: assignment.nama_lengkap || assignment.employee_name || 'Unknown',
+                id: assignment.user_id
+            });
+        });
+        
+        return grouped;
+    }
+    
+    createShiftDisplay(group) {
+        const shiftDiv = document.createElement('div');
+        shiftDiv.className = 'shift-item';
+        shiftDiv.style.cssText = `
+            margin-bottom: 10px; 
+            padding: 10px; 
+            border-left: 4px solid ${group.color}; 
+            background-color: ${group.color}20; 
+            border-radius: 6px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        `;
+        
+        shiftDiv.innerHTML = `
+            <div style="font-weight: bold; color: ${group.color}; margin-bottom: 4px; font-size: 13px;">
+                ${group.icon} ${group.shiftName}
+            </div>
+            <div style="font-size: 11px; color: #666; margin-bottom: 6px;">
+                ⏰ ${this.formatTime(group.startTime)} - ${this.formatTime(group.endTime)}
+            </div>
+            <div style="font-size: 12px; color: #333;">
+                <strong>👥 ${group.employees.length} pegawai:</strong><br>
+                <span style="font-size: 11px;">${group.employees.map(emp => emp.name).join(', ')}</span>
+            </div>
+        `;
+        
+        return shiftDiv;
+    }
+    
+    createShiftCard(group, date) {
+        const shiftCard = document.createElement('div');
+        shiftCard.className = 'shift-card';
+        shiftCard.style.cssText = `
+            background-color: ${group.color}20; 
+            border: 1px solid ${group.color}; 
+            border-radius: 8px; 
+            padding: 15px; 
+            margin: 10px 0;
+            cursor: pointer;
+        `;
+        
+        shiftCard.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <div>
+                    <h3 style="margin: 0; color: ${group.color};">${group.icon} ${group.shiftName}</h3>
+                    <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">
+                        ${this.formatTime(group.startTime)} - ${this.formatTime(group.endTime)}
+                    </p>
+                </div>
+                <span style="background-color: ${group.color}; color: white; padding: 5px 10px; border-radius: 15px; font-size: 12px;">
+                    ${group.employees.length} orang
+                </span>
+            </div>
+            <div>
+                <strong>👥 Pegawai:</strong>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                    ${group.employees.map(emp => `<li>${emp.name}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+        
+        // Click to edit shift
+        shiftCard.onclick = () => {
+            this.emit('SHIFT_EDIT', { group, date });
+        };
+        
+        return shiftCard;
+    }
+    
+    formatTime(timeString) {
+        if (!timeString) return '--:--';
+        return timeString.substring(0, 5);
+    }
+    
+    createMiniCalendar(year, month) {
+        const miniCalendar = document.createElement('div');
+        miniCalendar.className = 'mini-calendar-grid';
+        miniCalendar.style.cssText = 'display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; font-size: 11px;';
+        
+        // Day headers
+        const dayHeaders = ['M', 'S', 'S', 'R', 'K', 'J', 'S'];
+        dayHeaders.forEach(day => {
+            const headerCell = document.createElement('div');
+            headerCell.style.cssText = 'text-align: center; font-weight: bold;';
+            headerCell.textContent = day;
+            miniCalendar.appendChild(headerCell);
+        });
+        
+        // Calendar days
+        const firstDay = new Date(year, month, 1).getDay();
+        const adjustedFirstDay = firstDay === 0 ? 6 : firstDay - 1;
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        
+        // Empty cells
+        for (let i = 0; i < adjustedFirstDay; i++) {
+            const emptyCell = document.createElement('div');
+            miniCalendar.appendChild(emptyCell);
+        }
+        
+        // Day cells
+        for (let date = 1; date <= daysInMonth; date++) {
+            const dayCell = document.createElement('div');
+            dayCell.textContent = date;
+            dayCell.style.cssText = 'text-align: center; padding: 2px; cursor: pointer; border-radius: 3px;';
+            
+            // Highlight today
+            const today = new Date();
+            if (date === today.getDate() && 
+                month === today.getMonth() && 
+                year === today.getFullYear()) {
+                dayCell.style.backgroundColor = '#4caf50';
+                dayCell.style.color = 'white';
+            }
+            
+            dayCell.onclick = () => {
+                this.emit('DATE_NAVIGATE', { 
+                    direction: 'goto',
+                    date: new Date(year, month, date)
+                });
+                this.emit('VIEW_SWITCH', { view: 'day' });
+            };
+            
+            miniCalendar.appendChild(dayCell);
+        }
+        
+        return miniCalendar;
+    }
+    
+    hideAllViews() {
+        ['month-view', 'week-view', 'day-view', 'year-view'].forEach(viewId => {
+            const view = document.getElementById(viewId);
+            if (view) view.style.display = 'none';
+        });
+    }
+    
+    updateNavigationLabels() {
+        const { currentView, currentDate, currentMonth, currentYear } = this.getState();
+        const currentNav = document.getElementById('current-nav');
+        const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+                           'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+        
+        if (!currentNav) return;
+        
+        switch (currentView) {
+            case 'month':
+                currentNav.textContent = `${monthNames[currentMonth]} ${currentYear}`;
+                break;
+            case 'week':
+                const weekStart = new Date(currentDate);
+                const day = weekStart.getDay();
+                const diff = weekStart.getDate() - day + (day === 0 ? -6 : 1);
+                weekStart.setDate(diff);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+                
+                currentNav.textContent = `${weekStart.getDate()} ${monthNames[weekStart.getMonth()]} - ${weekEnd.getDate()} ${monthNames[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`;
+                break;
+            case 'day':
+                currentNav.textContent = `${currentDate.getDate()} ${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+                break;
+            case 'year':
+                currentNav.textContent = `${currentYear}`;
+                break;
+        }
+    }
+    
+    // Event handlers
+    handleViewSwitch(data) {
+        this.setState({ currentView: data.view }, 'CalendarView:viewSwitch');
+    }
+    
+    handleDateNavigate(data) {
+        const { currentView, currentDate, currentMonth, currentYear } = this.getState();
+        
+        if (data.direction === 'prev' || data.direction === 'next') {
+            const direction = data.direction === 'prev' ? -1 : 1;
+            
+            if (currentView === 'month') {
+                let newMonth = currentMonth + direction;
+                let newYear = currentYear;
+                
+                if (newMonth < 0) {
+                    newMonth = 11;
+                    newYear--;
+                } else if (newMonth > 11) {
+                    newMonth = 0;
+                    newYear++;
+                }
+                
+                this.setState({ 
+                    currentMonth: newMonth, 
+                    currentYear: newYear 
+                }, 'CalendarView:navigateMonth');
+                
+            } else if (currentView === 'week') {
+                const newDate = new Date(currentDate);
+                newDate.setDate(currentDate.getDate() + (direction * 7));
+                this.setState({ currentDate: newDate }, 'CalendarView:navigateWeek');
+                
+            } else if (currentView === 'day') {
+                const newDate = new Date(currentDate);
+                newDate.setDate(currentDate.getDate() + direction);
+                this.setState({ currentDate: newDate }, 'CalendarView:navigateDay');
+                
+            } else if (currentView === 'year') {
+                this.setState({ 
+                    currentYear: currentYear + direction 
+                }, 'CalendarView:navigateYear');
+            }
+            
+        } else if (data.direction === 'goto' && data.date) {
+            this.setState({ 
+                currentDate: data.date,
+                currentMonth: data.date.getMonth(),
+                currentYear: data.date.getFullYear()
+            }, 'CalendarView:gotoDate');
+        }
+    }
+    
+    handleBranchSelected(data) {
+        // Clear assignments when branch changes
+        this.setState({ assignments: {} }, 'CalendarView:branchChanged');
+    }
+    
+    handleDataUpdate(data) {
+        // Re-render when data changes
+        this.render();
+    }
+}
+
+// Export for global use
+window.ModernCalendarComponents = {
+    BranchSelector,
+    CalendarView
+};
